@@ -108,22 +108,43 @@ def mostrar_painel2(df):
             use_container_width=True
         )
 
-    # 3. AIBT < ALDT
+    # 3. AIBT ≤ ALDT
     tempo_incoerente = df[
         df["F.ETime"].notna() & df["AIBT"].notna() & df["ALDT"].notna() &
-        (df["AIBT"] < df["ALDT"])
+        (df["AIBT"] <= df["ALDT"])
     ].copy()
 
-    st.subheader(f"❌ AIBT < ALDT ({len(tempo_incoerente)})")
+    st.subheader(f"❌ Calço <= Pouso ({len(tempo_incoerente)})")
+
+    # Exibe a mensagem de alerta caso haja algum voo com AIBT == ALDT
+    if not tempo_incoerente.empty and (tempo_incoerente["AIBT"] == tempo_incoerente["ALDT"]).any():
+        st.markdown(
+            '<p style="color:red; font-weight:bold;">⚠️ Atenção: Pouso = Calço - Ajuste Necessário.</p>',
+        unsafe_allow_html=True
+        )
+
     if tempo_incoerente.empty:
-        st.success("Nenhum voo com AIBT inferior a ALDT.")
+        st.success("Nenhum voo com Calço inferior ou Igual ao Pouso.")
     else:
+        # Formatar colunas
         tempo_incoerente["Data"] = tempo_incoerente["Data"].dt.strftime("%d/%m/%Y")
         tempo_incoerente["AIBT"] = tempo_incoerente["AIBT"].dt.strftime("%H:%M")
         tempo_incoerente["ALDT"] = tempo_incoerente["ALDT"].dt.strftime("%H:%M")
 
-        st.dataframe(tempo_incoerente[["Data", "Id.Vuelo", "AIBT", "ALDT"]].reset_index(drop=True), hide_index=True, use_container_width=True)
-        st.download_button("⬇️ Baixar CSV", tempo_incoerente.to_csv(index=False, sep=";", encoding="utf-8"), file_name="inconsistencia_tempo.csv", mime="text/csv")
+    # Destacar linha quando AIBT == ALDT
+    def destacar_linha_igualdade(row):
+        return ['background-color: #ffcccc' if row['AIBT'] == row['ALDT'] else '' for _ in row]
+
+    styled_df = tempo_incoerente[["Data", "Id.Vuelo", "AIBT", "ALDT"]].style.apply(destacar_linha_igualdade, axis=1)
+
+    st.dataframe(styled_df, hide_index=True, use_container_width=True)
+
+    st.download_button(
+        "⬇️ Baixar CSV",
+        tempo_incoerente.to_csv(index=False, sep=";", encoding="utf-8"),
+        file_name="inconsistencia_tempo.csv",
+        mime="text/csv"
+    )
 
 # ========================
 # 🛩️ Painel 3: Análise Voos AVG
@@ -316,22 +337,36 @@ def mostrar_painel2_saida(df):
         sv_invalidos["Data"] = sv_invalidos["Data"].dt.strftime("%d/%m/%Y")
         st.dataframe(sv_invalidos[["Data", "Id.Vuelo", "Sv."]].reset_index(drop=True), hide_index=True, use_container_width=True)
 
-    # 4. ATOT < AOBT
+    # 4. ATOT ≤ AOBT
     atot_aobt = df[
         (df["Sit."] == "OPE") &
         df["ATOT"].notna() &
         df["AOBT"].notna() &
-        (df["ATOT"] < df["AOBT"])
+        (df["ATOT"] <= df["AOBT"])
     ].copy()
 
-    st.subheader(f"❌ ATOT < AOBT ({len(atot_aobt)})")
+    st.subheader(f"❌ Decolagem <= Saída Pátio ({len(atot_aobt)})")
+
+    if (atot_aobt["ATOT"] == atot_aobt["AOBT"]).any():
+        st.markdown('<p style="color:red; font-weight:bold;">Atenção: Saída de pátio = Decolagem - Ajuste Necessário.</p>', unsafe_allow_html=True)
+
     if atot_aobt.empty:
-        st.success("Nenhum voo com ATOT inferior a AOBT.")
+        st.success("Nenhum voo com Decolagem inferior ou igual a Saída de Pátio.")
     else:
-        atot_aobt["Data"] = atot_aobt["Data"].dt.strftime("%d/%m/%Y")
-        atot_aobt["ATOT"] = atot_aobt["ATOT"].dt.strftime("%H:%M")
-        atot_aobt["AOBT"] = atot_aobt["AOBT"].dt.strftime("%H:%M")
-        st.dataframe(atot_aobt[["Data", "Id.Vuelo", "ATOT", "AOBT"]].reset_index(drop=True), hide_index=True, use_container_width=True)
+        atot_aobt["Data"] = pd.to_datetime(atot_aobt["Data"]).dt.strftime("%d/%m/%Y")
+        atot_aobt["ATOT"] = pd.to_datetime(atot_aobt["ATOT"]).dt.strftime("%H:%M")
+        atot_aobt["AOBT"] = pd.to_datetime(atot_aobt["AOBT"]).dt.strftime("%H:%M")
+
+        def colorir_linha(row):
+            return ['background-color: #ffcccc' if row["ATOT"] == row["AOBT"] else '' for _ in row]
+
+        st.dataframe(
+            atot_aobt[["Data", "Id.Vuelo", "ATOT", "AOBT"]]
+            .reset_index(drop=True)
+            .style.apply(colorir_linha, axis=1),
+            hide_index=True,
+            use_container_width=True
+        )
 
 def mostrar_painel3_saida(df):
     st.markdown("## 🟥 Painel 3 – Análise Voos AVG (ZZZ-)")
