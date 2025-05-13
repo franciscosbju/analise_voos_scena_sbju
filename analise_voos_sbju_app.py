@@ -453,7 +453,7 @@ arquivo_rima = st.file_uploader(label="", type=["xlsx", "xls"], key="rima")
 def mostrar_painel_rima(df):
     st.markdown("## 📋 Análise RIMA – Divergência entre Calço e Toque")
 
-    # Garantir que as datas estão no formato datetime
+    # Converter colunas para datetime
     for col in ["CALCO_DATA", "TOQUE_DATA", "PREVISTO_DATA"]:
         if col in df.columns:
             df[col] = pd.to_datetime(df[col], errors="coerce")
@@ -465,17 +465,31 @@ def mostrar_painel_rima(df):
         (df["CALCO_DATA"] != df["TOQUE_DATA"])
     ].copy()
 
-    # Formatar datas
-    for col in ["PREVISTO_DATA", "CALCO_DATA", "TOQUE_DATA"]:
-        if col in divergentes.columns:
-            divergentes[col] = divergentes[col].dt.strftime("%d/%m/%Y")
+    # Criar coluna "Movimento" legível
+    divergentes["Movimento"] = divergentes["MOVIMENTO_TIPO"].map({"P": "Pouso", "D": "Decolagem"})
+
+    # Renomear e formatar colunas
+    divergentes["Data"] = divergentes["PREVISTO_DATA"].dt.strftime("%d/%m/%Y")
+    divergentes["Matrícula"] = divergentes["AERONAVE_MARCAS"]
+    divergentes["Operador"] = divergentes["AERONAVE_OPERADOR"]
+
+    # Corrigir Nº Voo (remover vírgula e garantir formato inteiro)
+    divergentes["Nº Voo"] = divergentes["VOO_NUMERO"].astype(int).astype(str)
+
+    # Criar colunas formatadas com texto
+    divergentes["Pouso ou Decolagem"] = divergentes.apply(
+        lambda row: f'{row["Movimento"]} {row["TOQUE_DATA"].strftime("%d/%m/%Y")}', axis=1
+    )
+    divergentes["Calço Aeronave"] = divergentes["CALCO_DATA"].dt.strftime("Calço %d/%m/%Y")
+
+    # Selecionar colunas finais
+    colunas_exibir = ["Data", "Movimento", "Matrícula", "Operador", "Nº Voo", "Calço Aeronave", "Pouso ou Decolagem"]
 
     st.subheader(f"❌ Divergência Calço ≠ Toque ({len(divergentes)})")
 
     if divergentes.empty:
         st.success("Nenhum voo com divergência entre CALCO_DATA e TOQUE_DATA.")
     else:
-        colunas_exibir = ["AERONAVE_OPERADOR", "PREVISTO_DATA", "CALCO_DATA", "TOQUE_DATA"]
         st.dataframe(divergentes[colunas_exibir].reset_index(drop=True), hide_index=True, use_container_width=True)
 
         csv = divergentes[colunas_exibir].to_csv(index=False, sep=";", encoding="utf-8")
