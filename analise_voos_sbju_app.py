@@ -480,12 +480,15 @@ def mostrar_painel_rima(df):
 
     divergentes["Nº Voo"] = divergentes["VOO_NUMERO"].astype(str).str.replace(",", "").str.strip()
 
-    divergentes["Calço Aeronave"] = divergentes.apply(
-        lambda row: f'Calço {row["CALCO_DATA"].strftime("%d/%m/%Y")} – {row["CALCO_HORARIO"]}', axis=1
+    divergentes["Calço Aeronave"] = (
+        "Calço " + divergentes["CALCO_DATA"].dt.strftime("%d/%m/%Y") +
+        " – " + divergentes["CALCO_HORARIO"].astype(str).str.strip().str[:5]
     )
 
-    divergentes["Pouso ou Decolagem"] = divergentes.apply(
-        lambda row: f'{row["Movimento"]} {row["TOQUE_DATA"].strftime("%d/%m/%Y")} – {row["TOQUE_HORARIO"]}', axis=1
+    divergentes["Pouso ou Decolagem"] = (
+        divergentes["Movimento"] + " " +
+        divergentes["TOQUE_DATA"].dt.strftime("%d/%m/%Y") +
+        " – " + divergentes["TOQUE_HORARIO"].astype(str).str.strip().str[:5]
     )
 
     # Ordem final
