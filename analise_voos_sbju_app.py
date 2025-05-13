@@ -453,37 +453,46 @@ arquivo_rima = st.file_uploader(label="", type=["xlsx", "xls"], key="rima")
 def mostrar_painel_rima(df):
     st.markdown("## 📋 Análise RIMA – Divergência entre Calço e Toque")
 
-    # Converter colunas para datetime
+    # Converter colunas de data
     for col in ["CALCO_DATA", "TOQUE_DATA", "PREVISTO_DATA"]:
         if col in df.columns:
             df[col] = pd.to_datetime(df[col], errors="coerce")
 
-    # Filtrar divergências
+    # Converter horários como string e garantir HH:MM
+    for col in ["CALCO_HORARIO", "TOQUE_HORARIO"]:
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.slice(0, 5)
+
+    # Filtrar divergência
     divergentes = df[
         df["CALCO_DATA"].notna() &
         df["TOQUE_DATA"].notna() &
         (df["CALCO_DATA"] != df["TOQUE_DATA"])
     ].copy()
 
-    # Criar coluna "Movimento" legível
+    # Criar coluna Movimento
     divergentes["Movimento"] = divergentes["MOVIMENTO_TIPO"].map({"P": "Pouso", "D": "Decolagem"})
 
-    # Renomear e formatar colunas
+    # Colunas auxiliares formatadas
     divergentes["Data"] = divergentes["PREVISTO_DATA"].dt.strftime("%d/%m/%Y")
     divergentes["Matrícula"] = divergentes["AERONAVE_MARCAS"]
     divergentes["Operador"] = divergentes["AERONAVE_OPERADOR"]
 
-    # Corrigir Nº Voo (remover vírgula e garantir formato inteiro)
-    divergentes["Nº Voo"] = divergentes["VOO_NUMERO"].astype(int).astype(str)
+    divergentes["Nº Voo"] = divergentes["VOO_NUMERO"].astype(str).str.replace(",", "").str.strip()
 
-    # Criar colunas formatadas com texto
-    divergentes["Pouso ou Decolagem"] = divergentes.apply(
-        lambda row: f'{row["Movimento"]} {row["TOQUE_DATA"].strftime("%d/%m/%Y")}', axis=1
+    divergentes["Calço Aeronave"] = divergentes.apply(
+        lambda row: f'Calço {row["CALCO_DATA"].strftime("%d/%m/%Y")} – {row["CALCO_HORARIO"]}', axis=1
     )
-    divergentes["Calço Aeronave"] = divergentes["CALCO_DATA"].dt.strftime("Calço %d/%m/%Y")
 
-    # Selecionar colunas finais
-    colunas_exibir = ["Data", "Movimento", "Matrícula", "Operador", "Nº Voo", "Calço Aeronave", "Pouso ou Decolagem"]
+    divergentes["Pouso ou Decolagem"] = divergentes.apply(
+        lambda row: f'{row["Movimento"]} {row["TOQUE_DATA"].strftime("%d/%m/%Y")} – {row["TOQUE_HORARIO"]}', axis=1
+    )
+
+    # Ordem final
+    colunas_exibir = [
+        "Data", "Movimento", "Matrícula", "Operador", "Nº Voo",
+        "Calço Aeronave", "Pouso ou Decolagem"
+    ]
 
     st.subheader(f"❌ Divergência Calço ≠ Toque ({len(divergentes)})")
 
