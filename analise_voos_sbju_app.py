@@ -68,7 +68,7 @@ def mostrar_painel2(df):
 
     # 1. Sit. = OPE e Est. ≠ IBK
     est_diferente = df[(df["Sit."] == "OPE") & (df["Est."].notna()) & (df["Est."] != "IBK")].copy()
-    st.subheader(f"❌ Estação divergente de IBK ({len(est_diferente)})")
+    st.subheader(f"❌ Voos Operados (OPE) mas com Estação divergente de IBK ({len(est_diferente)})")
     if est_diferente.empty:
         st.success("Nenhum voo com Est. diferente de IBK.")
     else:
@@ -114,34 +114,37 @@ def mostrar_painel2(df):
         (df["AIBT"] <= df["ALDT"])
     ].copy()
 
-    st.subheader(f"❌ Calço <= Pouso ({len(tempo_incoerente)})")
+    st.subheader(f"❌ Calço ≤ Pouso ({len(tempo_incoerente)})")
 
-    # Exibe a mensagem de alerta caso haja algum voo com AIBT == ALDT
+    # Exibe a mensagem de alerta caso haja AIBT == ALDT
     if not tempo_incoerente.empty and (tempo_incoerente["AIBT"] == tempo_incoerente["ALDT"]).any():
         st.markdown(
             '<p style="color:red; font-weight:bold;">⚠️ Atenção: Pouso = Calço - Ajuste Necessário.</p>',
-        unsafe_allow_html=True
+            unsafe_allow_html=True
         )
 
     if tempo_incoerente.empty:
         st.success("Nenhum voo com Calço inferior ou Igual ao Pouso.")
     else:
-        # Formatar colunas
+        # Formatar
         tempo_incoerente["Data"] = tempo_incoerente["Data"].dt.strftime("%d/%m/%Y")
         tempo_incoerente["AIBT"] = tempo_incoerente["AIBT"].dt.strftime("%H:%M")
         tempo_incoerente["ALDT"] = tempo_incoerente["ALDT"].dt.strftime("%H:%M")
 
-    # Destacar linha quando AIBT == ALDT
-    def destacar_linha_igualdade(row):
-        return ['background-color: #ffcccc' if row['AIBT'] == row['ALDT'] else '' for _ in row]
+    # Renomear colunas para exibição
+    df_exibir = tempo_incoerente.rename(columns={"AIBT": "Calço", "ALDT": "Pouso"})
 
-    styled_df = tempo_incoerente[["Data", "Id.Vuelo", "AIBT", "ALDT"]].style.apply(destacar_linha_igualdade, axis=1)
+    # Estilizar linha se Calço == Pouso
+    def destacar_linha_igualdade(row):
+        return ['background-color: #ffcccc' if row['Calço'] == row['Pouso'] else '' for _ in row]
+
+    styled_df = df_exibir[["Data", "Id.Vuelo", "Calço", "Pouso"]].style.apply(destacar_linha_igualdade, axis=1)
 
     st.dataframe(styled_df, hide_index=True, use_container_width=True)
 
     st.download_button(
         "⬇️ Baixar CSV",
-        tempo_incoerente.to_csv(index=False, sep=";", encoding="utf-8"),
+        df_exibir.to_csv(index=False, sep=";", encoding="utf-8"),
         file_name="inconsistencia_tempo.csv",
         mime="text/csv"
     )
@@ -301,7 +304,7 @@ def mostrar_painel2_saida(df):
         (df["Est."] != "AIR")
     ].copy()
 
-    st.subheader(f"❌ Estação ≠ AIR ({len(est_diferente)})")
+    st.subheader(f"❌ Voos Operados (OPE) mas com Estação divergente de AIR ({len(est_diferente)})")
     if est_diferente.empty:
         st.success("Todos os voos OPE possuem estação AIR.")
     else:
@@ -345,28 +348,36 @@ def mostrar_painel2_saida(df):
         (df["ATOT"] <= df["AOBT"])
     ].copy()
 
-    st.subheader(f"❌ Decolagem <= Saída Pátio ({len(atot_aobt)})")
+    st.subheader(f"❌ Decolagem ≤ Saída Pátio ({len(atot_aobt)})")
 
+    # Mensagem de alerta se houver igualdade
     if (atot_aobt["ATOT"] == atot_aobt["AOBT"]).any():
-        st.markdown('<p style="color:red; font-weight:bold;">Atenção: Saída de pátio = Decolagem - Ajuste Necessário.</p>', unsafe_allow_html=True)
+        st.markdown(
+            '<p style="color:red; font-weight:bold;">⚠️ Atenção: Saída de pátio = Decolagem - Ajuste Necessário.</p>',
+            unsafe_allow_html=True
+        )
 
     if atot_aobt.empty:
         st.success("Nenhum voo com Decolagem inferior ou igual a Saída de Pátio.")
     else:
+        # Formatar colunas
         atot_aobt["Data"] = pd.to_datetime(atot_aobt["Data"]).dt.strftime("%d/%m/%Y")
         atot_aobt["ATOT"] = pd.to_datetime(atot_aobt["ATOT"]).dt.strftime("%H:%M")
         atot_aobt["AOBT"] = pd.to_datetime(atot_aobt["AOBT"]).dt.strftime("%H:%M")
 
-        def colorir_linha(row):
-            return ['background-color: #ffcccc' if row["ATOT"] == row["AOBT"] else '' for _ in row]
+    # Renomear colunas apenas para exibição
+    df_exibir = atot_aobt.rename(columns={
+        "ATOT": "Decolagem",
+        "AOBT": "Descalço (Saída de Pátio)"
+    })
 
-        st.dataframe(
-            atot_aobt[["Data", "Id.Vuelo", "ATOT", "AOBT"]]
-            .reset_index(drop=True)
-            .style.apply(colorir_linha, axis=1),
-            hide_index=True,
-            use_container_width=True
-        )
+    # Estilizar linha quando houver igualdade
+    def colorir_iguais(row):
+        return ['background-color: #ffcccc' if row["Decolagem"] == row["Descalço (Saída de Pátio)"] else '' for _ in row]
+
+    df_styled = df_exibir[["Data", "Id.Vuelo", "Descalço (Saída de Pátio)", "Decolagem"]].reset_index(drop=True)
+    styled_df = df_styled.style.apply(colorir_iguais, axis=1)
+    st.dataframe(styled_df, hide_index=True, use_container_width=True)
 
 def mostrar_painel3_saida(df):
     st.markdown("## 🟥 Painel 3 – Análise Voos AVG (ZZZ-)")
