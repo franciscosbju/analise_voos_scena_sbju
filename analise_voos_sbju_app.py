@@ -57,9 +57,7 @@ def mostrar_painel1(df):
         st.success("Nenhuma divergência encontrada entre ETime e AIBT.")
     else:
         st.dataframe(resultado[["Data", "Id.Vuelo", "ETime", "AIBT", "Sit."]], hide_index=True, use_container_width=True)
-        csv = resultado.to_csv(index=False, sep=";", encoding="utf-8")
-        st.download_button("📥 Baixar CSV (Painel 1)", csv, file_name="divergencias_etime_aibt.csv", mime="text/csv")
-
+        
 # ========================
 # 🛩️ Painel 2: Inconsistências Operacionais
 # ========================
@@ -74,8 +72,7 @@ def mostrar_painel2(df):
     else:
         est_diferente["Data"] = est_diferente["Data"].dt.strftime("%d/%m/%Y")
         st.dataframe(est_diferente[["Data", "Id.Vuelo", "Sit.", "Est."]].reset_index(drop=True), hide_index=True, use_container_width=True)
-        st.download_button("⬇️ Baixar CSV", est_diferente.to_csv(index=False, sep=";", encoding="utf-8"), file_name="inconsistencia_est.csv", mime="text/csv")
-
+        
     # 2. Sit. = OPE e Stand = HOLD
     stand_hold = df[(df["Sit."] == "OPE") & (df["Stand"].notna()) & (df["Stand"].str.upper() == "HOLD")].copy()
     st.subheader(f"❌ Stand em HOLD ({len(stand_hold)})")
@@ -84,8 +81,7 @@ def mostrar_painel2(df):
     else:
         stand_hold["Data"] = stand_hold["Data"].dt.strftime("%d/%m/%Y")
         st.dataframe(stand_hold[["Data", "Id.Vuelo", "Sit.", "Stand"]].reset_index(drop=True), hide_index=True, use_container_width=True)
-        st.download_button("⬇️ Baixar CSV", stand_hold.to_csv(index=False, sep=";", encoding="utf-8"), file_name="inconsistencia_stand.csv", mime="text/csv")
-
+        
     # 2.5 Verificar SV proibida em voos comerciais (não ZZZ-)
     sv_proibida_comercial = ["D", "E", "K", "N", "T", "W"]
 
@@ -141,13 +137,6 @@ def mostrar_painel2(df):
     styled_df = df_exibir[["Data", "Id.Vuelo", "Calço", "Pouso"]].style.apply(destacar_linha_igualdade, axis=1)
 
     st.dataframe(styled_df, hide_index=True, use_container_width=True)
-
-    st.download_button(
-        "⬇️ Baixar CSV",
-        df_exibir.to_csv(index=False, sep=";", encoding="utf-8"),
-        file_name="inconsistencia_tempo.csv",
-        mime="text/csv"
-    )
 
 # ========================
 # 🛩️ Painel 3: Análise Voos AVG
@@ -234,47 +223,38 @@ def mostrar_painel3(df):
 # 🚀 Execução principal
 # ========================
 st.markdown(
-    '<span style="font-size:18px;">📁 Faça o upload do arquivo Excel - <strong style="color:red;">SOMENTE VOOS CHEGADA</strong></span>',
-    unsafe_allow_html=True
-)
-arquivo = st.file_uploader(label="", type=["xlsx", "xls"])
-
-if arquivo:
-    df, df_completo = carregar_voos(arquivo)
-    mostrar_painel1(df)
-    mostrar_painel2(df_completo)
-    mostrar_painel3(df_completo)
-else:
-    st.markdown(
-        '<div style="background-color:#e1f5fe; padding:10px; border-radius:5px;">'
-        'ℹ️ <strong>Envie um arquivo Excel com os dados dos voos - <span style="color:red;">SOMENTE DE CHEGADA.</span></strong>'
-        '</div>',
-        unsafe_allow_html=True
-    )
-
-# Linha divisória vermelha e tracejada
-st.markdown(
-    '<hr style="border: 2px dashed red; margin-top: 40px; margin-bottom: 20px;">',
+    """
+    <div style="display: flex; align-items: center; font-size: 17px; margin-bottom: 10px;">
+        <span style="font-size: 20px;">📁</span>
+        <span style="margin-left: 8px;">
+            Faça o upload do arquivo Excel - <strong style="color:red;">VOOS DE CHEGADA/PARTIDA</strong>
+        </span>
+    </div>
+    <div style="color: #555; font-size: 14px; margin-top: -8px; margin-left: 30px;">
+        Utilize apenas um arquivo com os dados de <em>chegada</em> e <em>partida</em> juntos.
+    </div>
+    """,
     unsafe_allow_html=True
 )
 
-# Novo cabeçalho de upload - SAÍDA
-st.markdown(
-    '<span style="font-size:18px;">📁 Faça o upload do arquivo Excel - <strong style="color:red;">SOMENTE VOOS SAÍDA</strong></span>',
-    unsafe_allow_html=True
-)
-
-arquivo_saida = st.file_uploader(label="", type=["xlsx", "xls"], key="saida")
+arquivo = st.file_uploader(label="", type=["xlsx", "xls"], key="arquivo_completo")
 
 def mostrar_painel_saida(df):
     st.markdown("## 🟥 Painel 1 – Divergência entre ETime e AOBT - A partir de 01/02/2024")
 
+    # ✅ Converter colunas relevantes para datetime
+    for col in ["Data", "ETime", "AOBT"]:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], dayfirst=True, errors="coerce")
+
+    # ✅ Aplicar filtro após conversão
     resultado = df[
         (df["Sit."] == "OPE") &
         (df["Data"] >= pd.to_datetime("2024-02-01")) &
         (df["ETime"] != df["AOBT"])
     ].copy()
 
+    # ✅ Formatar para exibição
     resultado["Data"] = resultado["Data"].dt.strftime("%d/%m/%Y")
     resultado["ETime"] = resultado["ETime"].dt.strftime("%H:%M")
     resultado["AOBT"] = resultado["AOBT"].dt.strftime("%H:%M")
@@ -287,15 +267,18 @@ def mostrar_painel_saida(df):
             hide_index=True,
             use_container_width=True
         )
-        st.download_button(
-            "📥 Baixar CSV (Painel 1 - Saída)",
-            resultado.to_csv(index=False, sep=";", encoding="utf-8"),
-            file_name="divergencias_etime_aobt_saida.csv",
-            mime="text/csv"
-        )
 
 def mostrar_painel2_saida(df):
     st.markdown("## 🟥 Painel 2 – Inconsistências Operacionais")
+
+    # 🔧 Converter colunas de data/hora para datetime
+    for col in ["Data"]:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors="coerce", dayfirst=True)
+
+    # 🔧 Forçar colunas de texto para string e limpar NaNs
+    df["Id.Vuelo"] = df["Id.Vuelo"].astype(str)
+    df["Sv."] = df["Sv."].astype(str)
 
     # 1. Estação divergente de AIR
     est_diferente = df[
@@ -329,6 +312,7 @@ def mostrar_painel2_saida(df):
     sv_proibida_comercial = ["D", "E", "K", "N", "T", "W"]
     sv_invalidos = df[
         (df["Sit."] == "OPE") &
+        (df["Id.Vuelo"] != "nan") &
         (~df["Id.Vuelo"].str.startswith("ZZZ-")) &
         (df["Sv."].isin(sv_proibida_comercial))
     ].copy()
@@ -341,6 +325,10 @@ def mostrar_painel2_saida(df):
         st.dataframe(sv_invalidos[["Data", "Id.Vuelo", "Sv."]].reset_index(drop=True), hide_index=True, use_container_width=True)
 
     # 4. ATOT ≤ AOBT
+    for col in ["ATOT", "AOBT"]:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors="coerce", dayfirst=True)
+
     atot_aobt = df[
         (df["Sit."] == "OPE") &
         df["ATOT"].notna() &
@@ -350,7 +338,6 @@ def mostrar_painel2_saida(df):
 
     st.subheader(f"❌ Decolagem ≤ Saída Pátio ({len(atot_aobt)})")
 
-    # Mensagem de alerta se houver igualdade
     if (atot_aobt["ATOT"] == atot_aobt["AOBT"]).any():
         st.markdown(
             '<p style="color:red; font-weight:bold;">⚠️ Atenção: Saída de pátio = Decolagem - Ajuste Necessário.</p>',
@@ -360,72 +347,92 @@ def mostrar_painel2_saida(df):
     if atot_aobt.empty:
         st.success("Nenhum voo com Decolagem inferior ou igual a Saída de Pátio.")
     else:
-        # Formatar colunas
-        atot_aobt["Data"] = pd.to_datetime(atot_aobt["Data"]).dt.strftime("%d/%m/%Y")
-        atot_aobt["ATOT"] = pd.to_datetime(atot_aobt["ATOT"]).dt.strftime("%H:%M")
-        atot_aobt["AOBT"] = pd.to_datetime(atot_aobt["AOBT"]).dt.strftime("%H:%M")
+        atot_aobt["Data"] = atot_aobt["Data"].dt.strftime("%d/%m/%Y")
+        atot_aobt["ATOT"] = atot_aobt["ATOT"].dt.strftime("%H:%M")
+        atot_aobt["AOBT"] = atot_aobt["AOBT"].dt.strftime("%H:%M")
 
-    # Renomear colunas apenas para exibição
-    df_exibir = atot_aobt.rename(columns={
-        "ATOT": "Decolagem",
-        "AOBT": "Descalço (Saída de Pátio)"
-    })
+        df_exibir = atot_aobt.rename(columns={
+            "ATOT": "Decolagem",
+            "AOBT": "Descalço (Saída de Pátio)"
+        })
 
-    # Estilizar linha quando houver igualdade
-    def colorir_iguais(row):
-        return ['background-color: #ffcccc' if row["Decolagem"] == row["Descalço (Saída de Pátio)"] else '' for _ in row]
+        def colorir_iguais(row):
+            return ['background-color: #ffcccc' if row["Decolagem"] == row["Descalço (Saída de Pátio)"] else '' for _ in row]
 
-    df_styled = df_exibir[["Data", "Id.Vuelo", "Descalço (Saída de Pátio)", "Decolagem"]].reset_index(drop=True)
-    styled_df = df_styled.style.apply(colorir_iguais, axis=1)
-    st.dataframe(styled_df, hide_index=True, use_container_width=True)
+        df_styled = df_exibir[["Data", "Id.Vuelo", "Descalço (Saída de Pátio)", "Decolagem"]].reset_index(drop=True)
+        styled_df = df_styled.style.apply(colorir_iguais, axis=1)
+        st.dataframe(styled_df, hide_index=True, use_container_width=True)
 
 def mostrar_painel3_saida(df):
     st.markdown("## 🟥 Painel 3 – Análise Voos AVG (ZZZ-)")
 
-    df_zzz = df[(df["Sit."] == "OPE") & (df["Id.Vuelo"].str.startswith("ZZZ-"))].copy()
+    # Garantir que as colunas de texto estão como string
+    df["Id.Vuelo"] = df["Id.Vuelo"].astype(str)
+    df["Registro"] = df["Registro"].astype(str)
+    df["Sv."] = df["Sv."].astype(str)
+    df["Id.Asociado"] = df["Id.Asociado"].astype(str)
+
+    # Converter a coluna de data, se necessário
+    if "Data" in df.columns:
+        df["Data"] = pd.to_datetime(df["Data"], errors="coerce", dayfirst=True)
+
+    # 1. Filtrar voos ZZZ- com Situação OPE
+    df_zzz = df[
+        (df["Sit."] == "OPE") &
+        (df["Id.Vuelo"] != "nan") &
+        (df["Id.Vuelo"].str.startswith("ZZZ-"))
+    ].copy()
 
     if df_zzz.empty:
         st.info("Nenhum voo AVG (ZZZ-) com Situação OPE encontrado.")
         return
 
-    # 1. Matrícula divergente do Registro
+    # 2. Matrícula divergente do Registro
     df_zzz["Matrícula"] = df_zzz["Id.Vuelo"].str.replace("ZZZ-", "", regex=False)
-    matricula_diferente = df_zzz[df_zzz["Matrícula"] != df_zzz["Registro"]][["Id.Vuelo", "Registro", "Sv.", "Data"]]
+    matricula_diferente = df_zzz[df_zzz["Matrícula"] != df_zzz["Registro"]][["Id.Vuelo", "Registro", "Sv.", "Data"]].copy()
+
     st.subheader(f"❌ Matrícula divergente do Registro ({len(matricula_diferente)})")
     if matricula_diferente.empty:
         st.success("Todos os voos ZZZ- têm matrícula compatível com o Registro.")
     else:
-        matricula_diferente["Data"] = pd.to_datetime(matricula_diferente["Data"]).dt.strftime("%d/%m/%Y")
+        matricula_diferente["Data"] = pd.to_datetime(matricula_diferente["Data"], errors="coerce").dt.strftime("%d/%m/%Y")
         st.dataframe(matricula_diferente[["Data", "Id.Vuelo", "Registro", "Sv."]].reset_index(drop=True), hide_index=True, use_container_width=True)
 
-    # 2. Categorias proibidas em voos AVG
+    # 3. Categorias proibidas em voos AVG
     sv_proibidas_geral = ["A", "B", "C", "E", "F", "G", "H", "J", "L", "M", "N", "O", "P", "Q", "R", "S", "U", "V", "X", "Y", "Z"]
     sv_proibidas_zzz_p = sv_proibidas_geral + ["W"]
     sv_proibidas_militar = sv_proibidas_geral + ["D", "K", "T"]
 
-    df_zzz_p = df_zzz[df_zzz["Id.Vuelo"].str.startswith("ZZZ-P")].copy()
-    df_zzz_mil = df_zzz[df_zzz["Id.Vuelo"].str.startswith("ZZZ-") & ~df_zzz["Id.Vuelo"].str.startswith("ZZZ-P")].copy()
+    df_zzz_p = df_zzz[
+        (df_zzz["Id.Vuelo"].str.startswith("ZZZ-P")) &
+        (df_zzz["Sv."].isin(sv_proibidas_zzz_p))
+    ].copy()
 
-    zzz_p_invalidos = df_zzz_p[df_zzz_p["Sv."].isin(sv_proibidas_zzz_p)].copy()
-    zzz_mil_invalidos = df_zzz_mil[df_zzz_mil["Sv."].isin(sv_proibidas_militar)].copy()
+    df_zzz_mil = df_zzz[
+        (~df_zzz["Id.Vuelo"].str.startswith("ZZZ-P")) &
+        (df_zzz["Sv."].isin(sv_proibidas_militar))
+    ].copy()
 
-    zzz_inconsistentes = pd.concat([zzz_p_invalidos, zzz_mil_invalidos], ignore_index=True)
+    zzz_inconsistentes = pd.concat([df_zzz_p, df_zzz_mil], ignore_index=True)
 
     st.subheader(f"❌ Categorias proibidas em voos AVG (ZZZ-) ({len(zzz_inconsistentes)})")
     if zzz_inconsistentes.empty:
         st.success("Nenhum voo AVG (ZZZ-) com categoria proibida.")
     else:
-        zzz_inconsistentes["Data"] = pd.to_datetime(zzz_inconsistentes["Data"]).dt.strftime("%d/%m/%Y")
+        zzz_inconsistentes["Data"] = pd.to_datetime(zzz_inconsistentes["Data"], errors="coerce").dt.strftime("%d/%m/%Y")
         st.dataframe(zzz_inconsistentes[["Data", "Id.Vuelo", "Sv."]].reset_index(drop=True), hide_index=True, use_container_width=True)
 
-    # 3. Operações divergentes de associados
-    voo_diferente_associado = df_zzz[df_zzz["Id.Vuelo"] != df_zzz["Id.Asociado"]][["Data", "Id.Vuelo", "Stand", "Id.Asociado"]].copy()
+    # 4. Operações divergentes de associados
+    voo_diferente_associado = df_zzz[
+        df_zzz["Id.Vuelo"] != df_zzz["Id.Asociado"]
+    ][["Data", "Id.Vuelo", "Stand", "Id.Asociado"]].copy()
+
     st.subheader(f"❌ Operações divergentes de associados ({len(voo_diferente_associado)})")
     if voo_diferente_associado.empty:
         st.success("Todos os voos ZZZ- possuem Id.Asociado igual ao Id.Vuelo.")
     else:
-        voo_diferente_associado["Data"] = pd.to_datetime(voo_diferente_associado["Data"]).dt.strftime("%d/%m/%Y")
-        voo_diferente_associado["Id.Asociado"] = voo_diferente_associado["Id.Asociado"].fillna("–")
+        voo_diferente_associado["Data"] = pd.to_datetime(voo_diferente_associado["Data"], errors="coerce").dt.strftime("%d/%m/%Y")
+        voo_diferente_associado["Id.Asociado"] = voo_diferente_associado["Id.Asociado"].replace("nan", "–")
 
         def colorir_associado(val):
             return "background-color: #ffcccc" if val != "–" else ""
@@ -433,19 +440,43 @@ def mostrar_painel3_saida(df):
         styled_df = voo_diferente_associado.style.applymap(colorir_associado, subset=["Id.Asociado"])
         st.dataframe(styled_df, hide_index=True, use_container_width=True)
 
-if arquivo_saida:
-    df_saida, df_saida_completo = carregar_voos(arquivo_saida)
-    mostrar_painel_saida(df_saida_completo)
-    mostrar_painel2_saida(df_saida_completo)
-    mostrar_painel3_saida(df_saida_completo)
+if arquivo:
+    df, df_completo = carregar_voos(arquivo)
 
-else:
+    # Título para seção de chegada (exibido apenas após upload)
     st.markdown(
-        '<div style="background-color:#e1f5fe; padding:10px; border-radius:5px;">'
-        'ℹ️ <strong>Envie um arquivo Excel com os dados dos voos - <span style="color:red;">SOMENTE DE SAÍDA.</span></strong>'
-        '</div>',
+        """
+        <h2 style="text-align: center; color: #2e7d32;">📥 Análise de Voos de Chegada</h2>
+        """,
         unsafe_allow_html=True
     )
+
+    mostrar_painel1(df)
+    mostrar_painel2(df_completo)
+    mostrar_painel3(df_completo)
+
+    # 🔻 Linha divisória única e título de saída (em verde, centralizado)
+    st.markdown(
+    """
+    <hr style="border: 2px dashed red; margin-top: 40px; margin-bottom: 20px;">
+    <h2 style="text-align: center; color: #2e7d32;">📤 Análise de Voos de Saída (Associados)</h2>
+    """,
+    unsafe_allow_html=True
+)
+
+    # 🔄 Preparar DataFrame de saída com base nas colunas "Assoc."
+    df_saida = df_completo[[col for col in df_completo.columns if col.startswith("Assoc.")]].copy()
+
+    # Remove o prefixo "Assoc. " dos nomes das colunas
+    df_saida.columns = [col.replace("Assoc. ", "") for col in df_saida.columns]
+
+    # Remove colunas duplicadas, se houver
+    df_saida = df_saida.loc[:, ~df_saida.columns.duplicated()]
+
+    # ▶️ Painéis de Saída
+    mostrar_painel_saida(df_saida)
+    mostrar_painel2_saida(df_saida)
+    mostrar_painel3_saida(df_saida)
 
 # Linha divisória vermelha e tracejada para separar a seção RIMA
 st.markdown(
