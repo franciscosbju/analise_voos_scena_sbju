@@ -445,24 +445,18 @@ if arquivo:
 
     # Título para seção de chegada (exibido apenas após upload)
     st.markdown(
-        """
-        <h2 style="text-align: center; color: #2e7d32;">📥 Análise de Voos de Chegada</h2>
-        """,
-        unsafe_allow_html=True
-    )
+    """
+    <h2 style="text-align: center; color: #2e7d32;">📥 Análise de Voos de Chegada</h2>
+    <p style="text-align: center; color: red; font-size: 16px; margin-top: -10px;">
+        Total de Operações Verificadas: <strong>{}</strong>
+    </p>
+    """.format(len(df_completo[df_completo["Sit."] == "OPE"])),
+    unsafe_allow_html=True
+)
 
     mostrar_painel1(df)
     mostrar_painel2(df_completo)
     mostrar_painel3(df_completo)
-
-    # 🔻 Linha divisória única e título de saída (em verde, centralizado)
-    st.markdown(
-    """
-    <hr style="border: 2px dashed red; margin-top: 40px; margin-bottom: 20px;">
-    <h2 style="text-align: center; color: #2e7d32;">📤 Análise de Voos de Saída (Associados)</h2>
-    """,
-    unsafe_allow_html=True
-)
 
     # 🔄 Preparar DataFrame de saída com base nas colunas "Assoc."
     df_saida = df_completo[[col for col in df_completo.columns if col.startswith("Assoc.")]].copy()
@@ -473,10 +467,30 @@ if arquivo:
     # Remove colunas duplicadas, se houver
     df_saida = df_saida.loc[:, ~df_saida.columns.duplicated()]
 
+    # 🔻 Linha divisória única e título de saída (em verde, centralizado)
+    st.markdown(
+    """
+    <hr style="border: 2px dashed red; margin-top: 40px; margin-bottom: 20px;">
+    <h2 style="text-align: center; color: #2e7d32;">📤 Análise de Voos de Saída (Associados)</h2>
+    <p style="text-align: center; color: red; font-size: 16px; margin-top: -10px;">
+        Total de Operações Verificadas: <strong>{}</strong>
+    </p>
+    """.format(len(df_saida[df_saida["Sit."] == "OPE"])),
+    unsafe_allow_html=True
+)
+
     # ▶️ Painéis de Saída
     mostrar_painel_saida(df_saida)
     mostrar_painel2_saida(df_saida)
     mostrar_painel3_saida(df_saida)
+
+else:
+    st.markdown(
+        '<div style="background-color:#e1f5fe; padding:10px; border-radius:5px;">'
+        'ℹ️ <strong>Envie um arquivo Excel com os dados dos voos – <span style="color:red;">ANÁLISE VOOS CHEGADA/PARTIDA - SCENA</span>.</strong>'
+        '</div>',
+        unsafe_allow_html=True
+    )
 
 # Linha divisória vermelha e tracejada para separar a seção RIMA
 st.markdown(
