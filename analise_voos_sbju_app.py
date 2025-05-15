@@ -227,11 +227,11 @@ st.markdown(
     <div style="display: flex; align-items: center; font-size: 17px; margin-bottom: 10px;">
         <span style="font-size: 20px;">📁</span>
         <span style="margin-left: 8px;">
-            Faça o upload do arquivo Excel - <strong style="color:red;">VOOS DE CHEGADA/PARTIDA</strong>
+            Faça o upload do arquivo Excel - <strong style="color:red;">VOOS DE CHEGADA (ÚNICO), PARTIDA (ÚNICO) OU CHEGADA/PARTIDA (CONJUNTO)</strong>
         </span>
     </div>
     <div style="color: #555; font-size: 14px; margin-top: -8px; margin-left: 30px;">
-        Utilize apenas um arquivo com os dados de <em>chegada</em> e <em>partida</em> juntos.
+        Utilize arquivos com os dados de <em>chegada (único)</em>, <em>partida (único)</em> ou <em>chegada/partida (conjunto)</em>.
     </div>
     """,
     unsafe_allow_html=True
@@ -442,52 +442,73 @@ def mostrar_painel3_saida(df):
 
 if arquivo:
     df, df_completo = carregar_voos(arquivo)
+    colunas = df_completo.columns.tolist()
 
-    # Título para seção de chegada (exibido apenas após upload)
-    st.markdown(
-    """
-    <h2 style="text-align: center; color: #2e7d32;">📥 Análise de Voos de Chegada</h2>
-    <p style="text-align: center; color: red; font-size: 16px; margin-top: -10px;">
-        Total de Operações Verificadas: <strong>{}</strong>
-    </p>
-    """.format(len(df_completo[df_completo["Sit."] == "OPE"])),
-    unsafe_allow_html=True
-)
+    tem_chegada = "AIBT" in colunas
+    tem_saida_associada = any(col.startswith("Assoc.") for col in colunas)
+    tem_saida_simples = "AOBT" in colunas and not tem_saida_associada and not tem_chegada
 
-    mostrar_painel1(df)
-    mostrar_painel2(df_completo)
-    mostrar_painel3(df_completo)
+    # 📥 Painéis de Chegada
+    if tem_chegada:
+        st.markdown(
+            """
+            <h2 style="text-align: center; color: #2e7d32;">📥 Análise de Voos de Chegada</h2>
+            <p style="text-align: center; color: red; font-size: 16px; margin-top: -10px;">
+                Total de Operações Verificadas: <strong>{}</strong>
+            </p>
+            """.format(len(df_completo[df_completo["Sit."] == "OPE"])),
+            unsafe_allow_html=True
+        )
+        mostrar_painel1(df)
+        mostrar_painel2(df_completo)
+        mostrar_painel3(df_completo)
 
-    # 🔄 Preparar DataFrame de saída com base nas colunas "Assoc."
-    df_saida = df_completo[[col for col in df_completo.columns if col.startswith("Assoc.")]].copy()
+    # 📤 Painéis de Saída com colunas associadas
+    if tem_saida_associada:
+        df_saida = df_completo[[col for col in colunas if col.startswith("Assoc.")]].copy()
+        df_saida.columns = [col.replace("Assoc. ", "") for col in df_saida.columns]
+        df_saida = df_saida.loc[:, ~df_saida.columns.duplicated()]
 
-    # Remove o prefixo "Assoc. " dos nomes das colunas
-    df_saida.columns = [col.replace("Assoc. ", "") for col in df_saida.columns]
+        st.markdown(
+            """
+            <hr style="border: 2px dashed red; margin-top: 40px; margin-bottom: 20px;">
+            <h2 style="text-align: center; color: #2e7d32;">📤 Análise de Voos de Saída (Associados)</h2>
+            <p style="text-align: center; color: red; font-size: 16px; margin-top: -10px;">
+                Total de Operações Verificadas: <strong>{}</strong>
+            </p>
+            """.format(len(df_saida[df_saida["Sit."] == "OPE"])),
+            unsafe_allow_html=True
+        )
+        mostrar_painel_saida(df_saida)
+        mostrar_painel2_saida(df_saida)
+        mostrar_painel3_saida(df_saida)
 
-    # Remove colunas duplicadas, se houver
-    df_saida = df_saida.loc[:, ~df_saida.columns.duplicated()]
+    # 📤 Painéis de Saída clássica (sem assoc.)
+    if tem_saida_simples:
+        # Só mostra a linha vermelha se também houver dados de chegada (indicando que é um arquivo combinado)
+        if tem_chegada:
+            st.markdown('<hr style="border: 2px dashed red; margin-top: 40px; margin-bottom: 20px;">', unsafe_allow_html=True)
 
-    # 🔻 Linha divisória única e título de saída (em verde, centralizado)
-    st.markdown(
-    """
-    <hr style="border: 2px dashed red; margin-top: 40px; margin-bottom: 20px;">
-    <h2 style="text-align: center; color: #2e7d32;">📤 Análise de Voos de Saída (Associados)</h2>
-    <p style="text-align: center; color: red; font-size: 16px; margin-top: -10px;">
-        Total de Operações Verificadas: <strong>{}</strong>
-    </p>
-    """.format(len(df_saida[df_saida["Sit."] == "OPE"])),
-    unsafe_allow_html=True
-)
+        st.markdown(
+        """
+        <h2 style="text-align: center; color: #2e7d32;">📤 Análise de Voos de Saída</h2>
+        <p style="text-align: center; color: red; font-size: 16px; margin-top: -10px;">
+            Total de Operações Verificadas: <strong>{}</strong>
+        </p>
+        """.format(len(df_completo[df_completo["Sit."] == "OPE"])),
+        unsafe_allow_html=True
+    )
+        mostrar_painel_saida(df_completo)
+        mostrar_painel2_saida(df_completo)
+        mostrar_painel3_saida(df_completo)
 
-    # ▶️ Painéis de Saída
-    mostrar_painel_saida(df_saida)
-    mostrar_painel2_saida(df_saida)
-    mostrar_painel3_saida(df_saida)
+    if not (tem_chegada or tem_saida_associada or tem_saida_simples):
+        st.error("❌ Arquivo inválido: nenhuma estrutura de chegada ou saída reconhecida.")
 
 else:
     st.markdown(
         '<div style="background-color:#e1f5fe; padding:10px; border-radius:5px;">'
-        'ℹ️ <strong>Envie um arquivo Excel com os dados dos voos – <span style="color:red;">ANÁLISE VOOS CHEGADA/PARTIDA - SCENA</span>.</strong>'
+        'ℹ️ <strong>Envie um arquivo Excel com os dados dos voos – <span style="color:red;">ANÁLISE VOOS SISTEMA SCENA</span>.</strong>'
         '</div>',
         unsafe_allow_html=True
     )
