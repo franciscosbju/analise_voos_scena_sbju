@@ -230,7 +230,7 @@ st.markdown(
             Faça o upload do arquivo Excel - <strong style="color:red;">VOOS DE CHEGADA (ÚNICO), PARTIDA (ÚNICO) OU CHEGADA/PARTIDA (CONJUNTO)</strong>
         </span>
     </div>
-    <div style="color: #555; font-size: 14px; margin-top: -8px; margin-left: 30px;">
+    <div style="color: #1a4d80; font-size: 16px; font-weight: bold; margin-top: -8px; margin-left: 30px;">
         Utilize arquivos com os dados de <em>chegada (único)</em>, <em>partida (único)</em> ou <em>chegada/partida (conjunto)</em>.
     </div>
     """,
@@ -522,6 +522,15 @@ st.markdown(
 # Título personalizado da nova seção – ANÁLISE RIMA
 st.markdown(
     '<span style="font-size:18px;">📁 Faça o upload do arquivo Excel – <strong style="color:red;">ANÁLISE RIMA (EM EXCEL)</strong></span>',
+    unsafe_allow_html=True
+)
+
+# Frase explicativa destacada
+st.markdown(
+    '<div style="color:#1a4d80; font-size:16px; font-weight:bold;">'
+    'OBS.: Os arquivos RIMA vêm no formato CSV. Para fazer a leitura correta, transforme-os em XLSX ou XLS (formato Excel).<br>'
+    'Vá em: Arquivo &gt; Salvar Como &gt; Pasta de Trabalho do Excel.'
+    '</div>',
     unsafe_allow_html=True
 )
 
