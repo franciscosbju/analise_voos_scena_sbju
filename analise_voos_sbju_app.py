@@ -601,6 +601,125 @@ if arquivo_rima:
     df_rima, df_rima_completo = carregar_rima(arquivo_rima)
     mostrar_painel_rima(df_rima_completo)
 
+        # ========================
+    # 🕓 ANÁLISE DE HORÁRIO DE PICO – COMPLEMENTAR AO RIMA (VERSÃO PLOTLY FINAL + FORMATO WIDE)
+    # ========================
+    import plotly.graph_objects as go
+
+    st.markdown("---")
+    st.markdown(
+        """
+        <h3 style="text-align:center; color:#1a4d80;">
+            🕓 Análise de Horário de Pico – SBJU
+        </h3>
+        """,
+        unsafe_allow_html=True
+    )
+
+    try:
+        if all(col in df_rima_completo.columns for col in ["PREVISTO_HORARIO", "PAX_LOCAL", "PAX_CONEXAO_DOMESTICO", "AERONAVE_OPERADOR"]):
+            # Converter horário
+            df_rima_completo["CALCO_HORARIO_NUM"] = pd.to_datetime(
+                df_rima_completo["PREVISTO_HORARIO"].astype(str).str.strip(),
+                format="%H:%M:%S", errors="coerce"
+            ).dt.hour
+
+            # Converter PAX
+            df_rima_completo["PAX_LOCAL"] = pd.to_numeric(df_rima_completo["PAX_LOCAL"], errors="coerce")
+            df_rima_completo["PAX_CONEXAO_DOMESTICO"] = pd.to_numeric(df_rima_completo["PAX_CONEXAO_DOMESTICO"], errors="coerce")
+
+            # Filtrar voos comerciais
+            df_comercial = df_rima_completo[df_rima_completo["AERONAVE_OPERADOR"] != "GERAL"].copy()
+            df_comercial["TOTAL_PAX"] = df_comercial["PAX_LOCAL"].fillna(0) + df_comercial["PAX_CONEXAO_DOMESTICO"].fillna(0)
+
+            # Criar faixa horária
+            df_comercial["Faixa Horária"] = df_comercial["CALCO_HORARIO_NUM"].apply(
+                lambda x: f"{int(x):02d}:00 - {int(x):02d}:59"
+            )
+
+            # Agrupar por faixa e operador
+            grupo_operador = (
+                df_comercial.groupby(["Faixa Horária", "AERONAVE_OPERADOR"])["TOTAL_PAX"]
+                .sum()
+                .reset_index()
+            )
+
+            # Companhia top
+            operador_top = grupo_operador.loc[
+                grupo_operador.groupby("Faixa Horária")["TOTAL_PAX"].idxmax()
+            ].rename(columns={"AERONAVE_OPERADOR": "Companhia Aérea", "TOTAL_PAX": "PAX Total Cia Aérea"})
+
+            # Total por faixa
+            analise_pico = (
+                df_comercial.groupby("Faixa Horária")["TOTAL_PAX"]
+                .sum()
+                .reset_index()
+                .rename(columns={"TOTAL_PAX": "Total PAX"})
+            )
+
+            # Merge final
+            analise_pico = analise_pico.merge(operador_top, on="Faixa Horária", how="left")
+            analise_pico = analise_pico.sort_values(by="Total PAX", ascending=False).reset_index(drop=True)
+
+            # Formatar valores com separador de milhar
+            analise_pico["Total PAX"] = analise_pico["Total PAX"].map(lambda x: f"{int(x):,}".replace(",", "."))
+            analise_pico["PAX Total Cia Aérea"] = analise_pico["PAX Total Cia Aérea"].map(lambda x: f"{int(x):,}".replace(",", "."))
+
+            # Exibir tabela centralizada em formato wide (sem índice)
+            st.dataframe(
+                analise_pico,
+                use_container_width=True,
+                hide_index=True
+            )
+
+            # Converter Total PAX para gráfico
+            analise_plot = analise_pico.copy()
+            analise_plot["Total PAX"] = analise_plot["Total PAX"].str.replace(".", "").astype(int)
+
+            # Gráfico interativo Plotly
+            fig = go.Figure()
+
+            fig.add_trace(go.Bar(
+                x=analise_plot["Faixa Horária"],
+                y=analise_plot["Total PAX"],
+                text=[f"{v:,.0f}".replace(",", ".") for v in analise_plot["Total PAX"]],
+                textposition="outside",
+                marker=dict(color="#1565C0"),
+                hovertemplate="<b>%{x}</b><br>Total PAX: %{text}<extra></extra>"
+            ))
+
+            fig.update_layout(
+                title=dict(
+                    text="Horário de Pico – Total de Passageiros",
+                    x=0.5,
+                    xanchor="center",
+                    font=dict(size=18, color="#0D47A1")
+                ),
+                xaxis=dict(title="Faixa Horária", tickangle=-45),
+                yaxis=dict(title="Total de Passageiros", showgrid=True, gridcolor="rgba(0,0,0,0.1)"),
+                bargap=0.3,
+                plot_bgcolor="white",
+                paper_bgcolor="white",
+                height=500
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Botão para baixar CSV
+            csv_pico = analise_pico.to_csv(index=False, sep=";", encoding="utf-8")
+            st.download_button(
+                "📥 Baixar CSV – Análise de Horário de Pico",
+                csv_pico,
+                file_name="rima_horario_pico.csv",
+                mime="text/csv"
+            )
+
+        else:
+            st.info("As colunas necessárias para a análise de horário de pico não foram encontradas no arquivo RIMA.")
+
+    except Exception as e:
+        st.error(f"Ocorreu um erro ao processar a análise de horário de pico: {e}")
+
 else:
     st.markdown(
         '<div style="background-color:#e1f5fe; padding:10px; border-radius:5px;">'
