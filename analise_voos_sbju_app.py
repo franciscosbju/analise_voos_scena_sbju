@@ -601,84 +601,121 @@ if arquivo_rima:
     df_rima, df_rima_completo = carregar_rima(arquivo_rima)
     mostrar_painel_rima(df_rima_completo)
 
-        # ========================
-    # 🕓 ANÁLISE DE HORÁRIO DE PICO – COMPLEMENTAR AO RIMA (VERSÃO PLOTLY FINAL + FORMATO WIDE)
+    # ========================
+    # 🕓 ANÁLISE DE HORÁRIO DE PICO – VERSÃO FINAL + FILTRO MOVIMENTO + TOTAL OPERAÇÕES
     # ========================
     import plotly.graph_objects as go
 
     st.markdown("---")
-    st.markdown(
-        """
-        <h3 style="text-align:center; color:#1a4d80;">
-            🕓 Análise de Horário de Pico – SBJU
-        </h3>
-        """,
-        unsafe_allow_html=True
-    )
+
+    # 🔘 Rádio de filtro de movimento (lado esquerdo)
+    col1, col2 = st.columns([1, 5])
+    with col1:
+        filtro_mov = st.radio(
+            "Filtrar por tipo de movimento:",
+            ("Todas", "Desembarque", "Embarque"),
+            horizontal=False
+        )
+
+    with col2:
+        st.markdown(
+            """
+            <h3 style="text-align:center; color:#1a4d80;">
+                🕓 Análise de Horário de Pico – SBJU
+            </h3>
+            """,
+            unsafe_allow_html=True
+        )
 
     try:
-        if all(col in df_rima_completo.columns for col in ["PREVISTO_HORARIO", "PAX_LOCAL", "PAX_CONEXAO_DOMESTICO", "AERONAVE_OPERADOR"]):
-            # Converter horário
-            df_rima_completo["CALCO_HORARIO_NUM"] = pd.to_datetime(
-                df_rima_completo["PREVISTO_HORARIO"].astype(str).str.strip(),
+        if all(col in df_rima_completo.columns for col in ["CALCO_HORARIO", "PAX_LOCAL", "PAX_CONEXAO_DOMESTICO", "AERONAVE_OPERADOR", "MOVIMENTO_TIPO"]):
+
+            # 🔹 Filtragem conforme o rádio selecionado
+            if filtro_mov == "Desembarque":
+                df_filtrado = df_rima_completo[df_rima_completo["MOVIMENTO_TIPO"].astype(str).str.upper().eq("P")]
+            elif filtro_mov == "Embarque":
+                df_filtrado = df_rima_completo[df_rima_completo["MOVIMENTO_TIPO"].astype(str).str.upper().eq("D")]
+            else:
+                df_filtrado = df_rima_completo.copy()
+
+            # 🔹 Converter horário
+            calco_dt = pd.to_datetime(
+                df_filtrado["CALCO_HORARIO"].astype(str).str.strip(),
                 format="%H:%M:%S", errors="coerce"
-            ).dt.hour
+            )
+            mask_na = calco_dt.isna()
+            if mask_na.any():
+                calco_dt.loc[mask_na] = pd.to_datetime(
+                    df_filtrado.loc[mask_na, "CALCO_HORARIO"].astype(str).str.strip(),
+                    format="%H:%M", errors="coerce"
+                )
+            df_filtrado["CALCO_HORARIO_NUM"] = calco_dt.dt.hour
 
-            # Converter PAX
-            df_rima_completo["PAX_LOCAL"] = pd.to_numeric(df_rima_completo["PAX_LOCAL"], errors="coerce")
-            df_rima_completo["PAX_CONEXAO_DOMESTICO"] = pd.to_numeric(df_rima_completo["PAX_CONEXAO_DOMESTICO"], errors="coerce")
+            # 🔹 Converter PAX
+            df_filtrado["PAX_LOCAL"] = pd.to_numeric(df_filtrado["PAX_LOCAL"], errors="coerce")
+            df_filtrado["PAX_CONEXAO_DOMESTICO"] = pd.to_numeric(df_filtrado["PAX_CONEXAO_DOMESTICO"], errors="coerce")
 
-            # Filtrar voos comerciais
-            df_comercial = df_rima_completo[df_rima_completo["AERONAVE_OPERADOR"] != "GERAL"].copy()
+            # 🔹 Filtrar apenas aviação comercial
+            df_comercial = df_filtrado[df_filtrado["AERONAVE_OPERADOR"] != "GERAL"].copy()
             df_comercial["TOTAL_PAX"] = df_comercial["PAX_LOCAL"].fillna(0) + df_comercial["PAX_CONEXAO_DOMESTICO"].fillna(0)
 
-            # Criar faixa horária
+            # 🔹 Criar faixa horária
             df_comercial["Faixa Horária"] = df_comercial["CALCO_HORARIO_NUM"].apply(
                 lambda x: f"{int(x):02d}:00 - {int(x):02d}:59"
             )
 
-            # Agrupar por faixa e operador
+            # 🔹 Agrupar por faixa e operador
             grupo_operador = (
                 df_comercial.groupby(["Faixa Horária", "AERONAVE_OPERADOR"])["TOTAL_PAX"]
                 .sum()
                 .reset_index()
             )
 
-            # Companhia top
+            # 🔹 Companhia top por faixa
             operador_top = grupo_operador.loc[
                 grupo_operador.groupby("Faixa Horária")["TOTAL_PAX"].idxmax()
-            ].rename(columns={"AERONAVE_OPERADOR": "Companhia Aérea", "TOTAL_PAX": "PAX Total Cia Aérea"})
+            ].rename(columns={
+                "AERONAVE_OPERADOR": "Companhia Aérea",
+                "TOTAL_PAX": "PAX Total Cia Aérea"
+            })
 
-            # Total por faixa
+            # 🔹 Totais por faixa
             analise_pico = (
-                df_comercial.groupby("Faixa Horária")["TOTAL_PAX"]
-                .sum()
+                df_comercial.groupby("Faixa Horária")
+                .agg(
+                    Total_PAX=("TOTAL_PAX", "sum"),
+                    Total_Operações=("TOTAL_PAX", "count")
+                )
                 .reset_index()
-                .rename(columns={"TOTAL_PAX": "Total PAX"})
             )
 
-            # Merge final
+            # 🔹 Merge final
             analise_pico = analise_pico.merge(operador_top, on="Faixa Horária", how="left")
-            analise_pico = analise_pico.sort_values(by="Total PAX", ascending=False).reset_index(drop=True)
+            analise_pico = analise_pico.sort_values(by="Total_PAX", ascending=False).reset_index(drop=True)
 
-            # Formatar valores com separador de milhar
-            analise_pico["Total PAX"] = analise_pico["Total PAX"].map(lambda x: f"{int(x):,}".replace(",", "."))
+            # 🔹 Formatar números
+            analise_pico["Total_PAX"] = analise_pico["Total_PAX"].map(lambda x: f"{int(x):,}".replace(",", "."))
             analise_pico["PAX Total Cia Aérea"] = analise_pico["PAX Total Cia Aérea"].map(lambda x: f"{int(x):,}".replace(",", "."))
+            analise_pico["Total_Operações"] = analise_pico["Total_Operações"].map(lambda x: f"{int(x):,}".replace(",", "."))
 
-            # Exibir tabela centralizada em formato wide (sem índice)
+            # 🔹 Renomear colunas
+            analise_pico.rename(columns={
+                "Total_PAX": "Total PAX",
+                "Total_Operações": "Total de Operações"
+            }, inplace=True)
+
+            # 🔹 Exibir tabela
             st.dataframe(
                 analise_pico,
                 use_container_width=True,
                 hide_index=True
             )
 
-            # Converter Total PAX para gráfico
+            # 🔹 Gráfico interativo (Plotly)
             analise_plot = analise_pico.copy()
             analise_plot["Total PAX"] = analise_plot["Total PAX"].str.replace(".", "").astype(int)
 
-            # Gráfico interativo Plotly
             fig = go.Figure()
-
             fig.add_trace(go.Bar(
                 x=analise_plot["Faixa Horária"],
                 y=analise_plot["Total PAX"],
@@ -690,13 +727,13 @@ if arquivo_rima:
 
             fig.update_layout(
                 title=dict(
-                    text="Horário de Pico – Total de Passageiros",
+                    text=f"Horário de Pico – Total de Passageiros ({filtro_mov})",
                     x=0.5,
                     xanchor="center",
                     font=dict(size=18, color="#0D47A1")
                 ),
                 xaxis=dict(title="Faixa Horária", tickangle=-45),
-                yaxis=dict(title="Total de Passageiros", showgrid=True, gridcolor="rgba(0,0,0,0.1)"),
+                yaxis=dict(title="Total de Passageiros", showgrid=False),  # gráfico limpo
                 bargap=0.3,
                 plot_bgcolor="white",
                 paper_bgcolor="white",
@@ -705,12 +742,12 @@ if arquivo_rima:
 
             st.plotly_chart(fig, use_container_width=True)
 
-            # Botão para baixar CSV
+            # 🔹 Botão para download
             csv_pico = analise_pico.to_csv(index=False, sep=";", encoding="utf-8")
             st.download_button(
                 "📥 Baixar CSV – Análise de Horário de Pico",
                 csv_pico,
-                file_name="rima_horario_pico.csv",
+                file_name=f"rima_horario_pico_{filtro_mov.lower()}.csv",
                 mime="text/csv"
             )
 
