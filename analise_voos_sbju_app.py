@@ -214,7 +214,10 @@ def mostrar_painel3(df):
         return "background-color: #ffcccc" if val != "–" else ""
 
     # Aplicar estilo apenas na coluna "Id.Asociado"
-    styled_df = voo_diferente_associado.style.applymap(colorir_associado, subset=["Id.Asociado"])
+    styled_df = voo_diferente_associado.style.map(
+        colorir_associado,
+        subset=["Id.Asociado"]
+    )
 
     # Exibir DataFrame com índice oculto e layout wide
     st.dataframe(styled_df, hide_index=True, use_container_width=True)
