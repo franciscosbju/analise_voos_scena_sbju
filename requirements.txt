@@ -1,8 +1,9 @@
 streamlit>=1.30
-pandas>=2.0
+pandas>=2.1
 plotly>=5.15
 openpyxl>=3.1
 xlrd>=2.0.1
+tzdata
 numpy
 scipy
 requests
